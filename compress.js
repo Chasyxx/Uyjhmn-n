@@ -44,7 +44,9 @@ code = code.replace(/\x1b8([\w_!@#$%^&*()+=]+)\x1bc([\w_!@#$%^&*()+=]+)\x1b9\2/g
 
 code = code.replace(/\x1c1([\w_!@#$%^&*()+=]+)\n\x1c0(-?\d+)/g,'\x1c3$1\x1d$2')
 
-code = ("UYJ2_"+btoa(code));
+code = code.replace(/PUT A RANDOM NUMBER BETWEEN (-?\d+) AND (-?\d+) INTO THE OPEN VARIABLE/g,'\x1c4$1\x1d$2')
+
+//code = ("UYJ2_"+btoa(code));
 //code = code.replace(/([^\r\n]{40})/g,'$1\n');
 
 console.log("\n\n%s\n\nSucessfully made %d bytes of data",code,code.length);

@@ -7,7 +7,7 @@ function decompress(input) {
         input = atob(input.slice(5));
 
         //code = code.replace(/([^\r\n]{40})\r?\n/g,'$1');
-        if([,/\x1b[i-z]|\x1c[4-z]/,/\x1b[l-z]|\x1c[4-z]/][ver].test(input)) {
+        if([,/\x1b[i-z]|\x1c[4-z]/,/\x1b[l-z]|\x1c[5-z]/][ver].test(input)) {
             console.error("\x1b[31mUnsupported compression flags for format UYJ_%s\x1b[0m",ver);
 			return null;
         }
@@ -36,9 +36,10 @@ function decompress(input) {
         input = input.replace(/\x1bf/g, 'GET INPUT AND STORE INTO OPEN VARIABLE AS A CHARACTER')
         input = input.replace(/\x1bg/g, 'GET INPUT AND STORE INTO OPEN VARIABLE AS A NUMBER')
         input = input.replace(/\x1bh/g, 'ADD ')
-		if(ver>1) input = input.replace(/\x1bi/g, 'PRINT THE STRING ``')
-		if(ver>1) input = input.replace(/\x1bj/g, 'CREATE THE VARIABLE ')
-		if(ver>1) input = input.replace(/\x1bk/g, 'USE: ')
+		if(ver!=='1') input = input.replace(/\x1bi/g, 'PRINT THE STRING ``')
+		if(ver!=='1') input = input.replace(/\x1bj/g, 'CREATE THE VARIABLE ')
+		if(ver!=='1') input = input.replace(/\x1bk/g, 'USE: ')
+		if(ver!=='1') input = input.replace(/\x1c4(-?\d+)\x1d(-?\d+)/g, 'PUT A RANDOM NUMBER BETWEEN $1 AND $2 INTO THE OPEN VARIABLE')
         input = input.replace(/\n/g, '\r\n')
     } else {
         console.error("\x1b[31mUnsupported compression method/version\x1b[0m");
@@ -47,7 +48,7 @@ function decompress(input) {
     return input;
 }
 
-const input = process.argv[2]??"./code.txt"
+const input = process.argv[2]??"./code.uyj"
 
 let compress = 1;
 if(process.argv.includes("--no-decompression")||process.argv.includes("-nd")) compress = 0;
@@ -93,7 +94,7 @@ const code2 = code1.split(/(?:\r?\n){1,}/).map(a => a.trim()).filter(a => a !== 
 const $1 = console.log;
 const $ = _ => process.stdout.write(_);
 let PC = 0, labels = {}, vars = {}, openVar = '';
-const builtinLibs=["STRINGPRINT","QUICKVAR"];
+const builtinLibs=["STRINGPRINT","QUICKVAR","RANDOM"];
 const usedLibs=[];
 
 //process.stdin.setRawMode(true);
@@ -165,7 +166,7 @@ while (PC < code2.length) {
 		const name2 = line.match(/(?<=IF )[\w_!@#$%^&*()+=]+/)[0];
 		const name3 = line.match(/[\w_!@#$%^&*()+=]+$/)[0];
 		if (labels[name1] == undefined || vars[name2] == undefined || vars[name3] == undefined)
-			$$(PC, "SPEEEEEEEEN")
+			$$(PC, "SPEEEEEEEEN (%s %s %s)",name1,name2,name3)
 
 		if (vars[name2] == vars[name3])
 			PC = labels[name1];
@@ -175,7 +176,7 @@ while (PC < code2.length) {
 		const name2 = line.match(/(?<=IF )[\w_!@#$%^&*()+=]+/)[0];
 		const name3 = line.match(/[\w_!@#$%^&*()+=]+$/)[0];
 		if (labels[name1] == undefined || vars[name2] == undefined || vars[name3] == undefined)
-			$$(PC, "SPEEEEEEEEN")
+		$$(PC, "SPEEEEEEEEN (%s %s %s)",name1,name2,name3)
 
 		if (vars[name2] > vars[name3])
 			PC = labels[name1];
@@ -185,7 +186,7 @@ while (PC < code2.length) {
 		const name2 = line.match(/(?<=IF )[\w_!@#$%^&*()+=]+/)[0];
 		const name3 = line.match(/[\w_!@#$%^&*()+=]+$/)[0];
 		if (labels[name1] == undefined || vars[name2] == undefined || vars[name3] == undefined)
-			$$(PC, "SPEEEEEEEEN")
+		$$(PC, "SPEEEEEEEEN (%s %s %s)",name1,name2,name3)
 
 		if (vars[name2] < vars[name3])
 			PC = labels[name1];
@@ -229,6 +230,15 @@ while (PC < code2.length) {
 			PC++;
 		} else {
 			$$(PC,"%s!? never heard of it...\n(try adding \"USE: QUICKVAR\" at the start of your code to add the extension. Drexel will hate you, though.)",line);
+		}
+	} else if(/^PUT A RANDOM NUMBER BETWEEN -?\d+ AND -?\d+ INTO THE OPEN VARIABLE$/.test(line)) {
+		if(usedLibs.includes("RANDOM")) {
+			const value1 = +line.match(/(?<=N )-?\d+/)[0];
+			const value2 = +line.match(/(?<=D )-?\d+/)[0];
+			vars[openVar] = Math.floor((Math.random()*(value2-value1+1))+value1);
+			PC++;
+		} else {
+			$$(PC,"%s!? never heard of it...\n(try adding \"USE: RANDOM\" at the start of your code to add the extension. Drexel will hate you, though.)",line);
 		}
 	}
 
