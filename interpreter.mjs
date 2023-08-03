@@ -1,0 +1,208 @@
+import fs from 'fs'
+import readline from 'readline'
+
+function decompress(input) {
+    if (/^UYJ1_/.test(input)) {
+        input = atob(input.slice(5));
+
+        //code = code.replace(/([^\r\n]{40})\r?\n/g,'$1');
+        if(/\x1b[i-z]|\x1c[4-z]/.test(input)) {
+            console.error("\x1b[31mUnsupported compression flags\x1b[0m");
+        }
+        // code = code.replace(/\x1c1([\w_!@#$%^&*()+=]+)\n\x1c0(-?\d+)/g,'\x1c3$1\x1d$2')
+        input = input.replace(/\x1c3([\w_!@#$%^&*()+=]+)\x1d(-?\d+)/g, '\x1c1$1\n\x1c0$2')
+
+        input = input.replace(/\x1c0(-?\d+)/g, '\x1b3$1\x1b4');
+        input = input.replace(/\x1c1([\w_!@#$%^&*()+=]+)/g, '\x1b1$1\n\x1b2$1');
+        input = input.replace(/\x1c2([\w_!@#$%^&*()+=]+)\x1d([\w_!@#$%^&*()+=]+)/g, '\x1b8$1\x1bc$2\x1b9$2');
+
+        input = input.replace(/\x1b0([^])/g, (_match, p1) => `PRINT THE CHARACTER WITH THE ASCII VALUE ${p1.charCodeAt(0)}`)
+        input = input.replace(/\x1b1/g, 'DECLARE THE NEW VARIABLE ')
+        input = input.replace(/\x1b2/g, 'OPEN THE VARIABLE ')
+        input = input.replace(/\x1b3/g, 'ASSIGN ')
+        input = input.replace(/\x1b4/g, ' TO THE OPEN VARIABLE')
+        input = input.replace(/\x1b5/g, 'MULTIPLY THE OPEN VARIABLE BY')
+        input = input.replace(/\x1b6/g, 'PRINT THE OPEN VARIABLE\'S CHARACTER')
+        input = input.replace(/\x1b7/g, 'PRINT THE OPEN VARIABLE\'S VALUE')
+        input = input.replace(/\x1b8/g, 'JUMP TO ')
+        input = input.replace(/\x1b9/g, ' IS EQUAL TO ')
+        input = input.replace(/\x1ba/g, ' IS GREATER THAN ')
+        input = input.replace(/\x1bb/g, ' IS LESS THAN ')
+        input = input.replace(/\x1bc/g, ' IF ')
+        input = input.replace(/\x1bd/g, 'DEFINE THE NEW LABEL ')
+        input = input.replace(/\x1be/g, 'END THIS PROGRAM')
+        input = input.replace(/\x1bf/g, 'GET INPUT AND STORE INTO OPEN VARIABLE AS A CHARACTER')
+        input = input.replace(/\x1bg/g, 'GET INPUT AND STORE INTO OPEN VARIABLE AS A NUMBER')
+        input = input.replace(/\x1bh/g, 'ADD ')
+        input = input.replace(/\n/g, '\r\n')
+    } else {
+        console.error("\x1b[31mUnsupported compression method/version\x1b[0m");
+        return null;
+    }
+    return input;
+}
+
+const input = process.argv[2]??"./code.txt"
+
+let compress = 1;
+if(process.argv.includes("--no-decompression")||process.argv.includes("-nd")) compress = 0;
+if(process.argv.includes("--force-decompression")||process.argv.includes("-fd")) compress = 2;
+
+const direct_code = process.argv.indexOf("--direct");
+
+let code1, code0;
+if(direct_code==-1) {
+	try {
+		code0 = code1 = fs.readFileSync(input, { encoding: "utf-8" });
+	} catch (e) {
+		if (e.code = "ENOENT") {
+			console.error("Can't find the input file \x1b[46;30m%s\x1b[0m. try \x1b[46;30mnode node.mjs ./examples/battle_game/game.uyj\x1b[0m!",input);
+			process.exit(1);
+		}
+	}
+} else {
+	code1 = code0 = process.argv[direct_code+1]??"ERROR_NOT_FOUND";
+}
+
+if(((/^UYJ\d_/.test(code1)||direct_code!==-1)&&compress==1)||compress==2){
+	console.log("Now decompressing...")
+	code1=decompress(code1);
+	if(code1==null) {
+		console.error("\x1b[41;30mDECOMPRESSION FALIURE.\x1b[0m")
+		if(compress==2) {
+			console.error("\x1b[41;30mABORTING\x1b[0m")
+			process.exit(1);
+		} else {
+			console.error("\x1b[41;30mCANCELLED\x1b[0m")
+			code1=code0;
+		}
+	} else {
+		fs.writeFileSync('./decompressed_code.uyj',code1)
+	}
+}
+
+const code2 = code1.split(/(?:\r?\n){1,}/).map(a => a.trim()).filter(a => a !== '');
+const $1 = console.log;
+const $ = _ => process.stdout.write(_);
+let PC = 0, labels = {}, vars = {}, openVar = '';
+
+//process.stdin.setRawMode(true);
+
+code2.forEach((e, i, a) => {
+	if (/^DEFINE THE NEW LABEL|^DTNL/i.test(e)) {
+		const label = e.match(/[\w_!@#$%^&*()+=]+$/)[0];
+		labels[label] = i;
+	}
+})
+
+function $$(PC, ...details) {
+	details[0] = "\n" + details[0];
+	$1(...details);
+	$1("On line %d: I'd cut your time in half, but there's no timers here.", PC + 1)
+	process.exit(1);
+}
+
+while (PC < code2.length) {
+	const line = code2[PC];
+	//$1(`\x1b[92m${PC}: \x1b[1;36m${line}\x1b[0;92m`.padEnd(70) + `:${PC}\x1b[0m`)
+	if (/^(?:PRINT THE CHARACTER WITH THE (?:ASCII|UNICODE) VALUE |PTCWT[AU]V)\d+$/.test(line)) {
+		const value = +line.match(/\d+$/)[0];
+		const char = String.fromCharCode(value);
+		$(char);
+		PC++;
+	} else if (/^(?:DECLARE THE NEW VARIABLE|DTNV) [\w_!@#$%^&*()+=]+$/.test(line)) {
+		const name = line.match(/[\w_!@#$%^&*()+=]+$/)[0];
+		vars[name] = 0;
+		PC++;
+	} else if (/^(?:OPEN THE VARIABLE|OTV) [\w_!@#$%^&*()+=]+$/.test(line)) {
+		const name = line.match(/[\w_!@#$%^&*()+=]+$/)[0];
+		openVar = name;
+		if (vars[openVar] == undefined) $$(PC, "You can't open an undeclared variable (like %s)", name);
+		PC++
+	} else if (/^(?:ASSIGN |A)-?\d+(?: TO THE OPEN VARIABLE| ?TTOV)$/.test(line)) {
+		const val = +line.match(/-?\d+/)[0];
+		vars[openVar] = val;
+		PC++
+	} else if (/^ADD [\w_!@#$%^&*()+=]+ (?:TO THE OPEN VARIABLE|TTOV)$/.test(line)) {
+		const val = vars[line.match(/(?<=^ADD\s|^A\s)[\w_!@#$%^&*()+=]+/)[0]];
+		if (val == undefined) $$(PC, "You can't add using an undeclared variable");
+		vars[openVar] += val;
+		PC++;
+	} else if (/^(?:MULTIPLY THE OPEN VARIABLE BY|MTOVB) [\w_!@#$%^&*()+=]+$/.test(line)) {
+		const val = vars[line.match(/[\w_!@#$%^&*()+=]+$/)[0]];
+		if (val == undefined) $$(PC, "You can't multiply using an undeclared variable");
+		vars[openVar] *= val;
+		PC++;
+	} else if (/^PRINT THE OPEN VARIABLE'S CHARACTER$|^PTOVC$/.test(line)) {
+		const value = vars[openVar];
+		const char = String.fromCharCode(value);
+		$(char);
+		PC++;
+	} else if (/^PRINT THE OPEN VARIABLE'S VALUE$|^PTOVV$/.test(line)) {
+		const value = vars[openVar];
+		$(String(value));
+		PC++;
+	} else if (/^(?:DEFINE THE NEW LABEL|DTNL) [\w_!@#$%^&*()+=]+$/.test(line)) {
+		PC++;
+	} else if (/^(?:JUMP TO|JT) [\w_!@#$%^&*()+=]+ IF [\w_!@#$%^&*()+=]+ (?:IS EQUAL TO|IET) [\w_!@#$%^&*()+=]+$/.test(line)) {
+		const name1 = line.match(/[\w_!@#$%^&*()+=]+(?= IF)/)[0];
+		const name2 = line.match(/(?<=IF )[\w_!@#$%^&*()+=]+/)[0];
+		const name3 = line.match(/[\w_!@#$%^&*()+=]+$/)[0];
+		if (labels[name1] == undefined || vars[name2] == undefined || vars[name3] == undefined)
+			$$(PC, "SPEEEEEEEEN")
+
+		if (vars[name2] == vars[name3])
+			PC = labels[name1];
+		else PC++;
+	} else if (/^(?:JUMP TO|JT) [\w_!@#$%^&*()+=]+ IF [\w_!@#$%^&*()+=]+ (?:IS GREATER THAN|IGT) [\w_!@#$%^&*()+=]+$/.test(line)) {
+		const name1 = line.match(/[\w_!@#$%^&*()+=]+(?= IF)/)[0];
+		const name2 = line.match(/(?<=IF )[\w_!@#$%^&*()+=]+/)[0];
+		const name3 = line.match(/[\w_!@#$%^&*()+=]+$/)[0];
+		if (labels[name1] == undefined || vars[name2] == undefined || vars[name3] == undefined)
+			$$(PC, "SPEEEEEEEEN")
+
+		if (vars[name2] > vars[name3])
+			PC = labels[name1];
+		else PC++;
+	} else if (/^(?:JUMP TO|JT) [\w_!@#$%^&*()+=]+ IF [\w_!@#$%^&*()+=]+ (?:IS LESS THAN|ILT) [\w_!@#$%^&*()+=]+$/.test(line)) {
+		const name1 = line.match(/[\w_!@#$%^&*()+=]+(?= IF)/)[0];
+		const name2 = line.match(/(?<=IF )[\w_!@#$%^&*()+=]+/)[0];
+		const name3 = line.match(/[\w_!@#$%^&*()+=]+$/)[0];
+		if (labels[name1] == undefined || vars[name2] == undefined || vars[name3] == undefined)
+			$$(PC, "SPEEEEEEEEN")
+
+		if (vars[name2] < vars[name3])
+			PC = labels[name1];
+		else PC++;
+	} else if (/^GET INPUT AND STORE INTO OPEN VARIABLE AS A CHARACTER$|^GIASIOVAAC$/.test(line)) {
+		const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+		await new Promise(resolve => {
+			rl.question("character pls:", a => {
+				vars[openVar] = a.charCodeAt(0);
+				rl.close();
+				resolve();
+			})
+		})
+		PC++;
+	} else if (/^GET INPUT AND STORE INTO OPEN VARIABLE AS A NUMBER$|^GIASIOVAAN$/.test(line)) {
+		const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+		await new Promise(resolve => {
+			rl.question("number pls:", a => {
+				vars[openVar] = +a;
+				rl.close();
+				resolve();
+			})
+		})
+		PC++;
+	} else if (/^END THIS PROGRAM|ETP$/.test(line)) {
+		process.exit(0);
+	} else if (/^NOTE THAT|^\/\//.test(line)) {
+		PC++;
+	}
+
+	else {
+		$$(PC, "What does \"%s\" mean!?", line);
+	}
+}
+
+$$(code2.length, "You didn't type end this program...? GRRRR");
