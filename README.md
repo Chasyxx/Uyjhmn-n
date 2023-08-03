@@ -6,7 +6,7 @@ Interpreter for uyjhmn n that comes with a compression tool.
 Many ways to use these:
 
 # Usage
-## node.mjs
+## interpreter.mjs
 interpreter.mjs is the main file. there are many ways to call this using node:
 
 

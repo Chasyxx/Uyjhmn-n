@@ -2,12 +2,14 @@ import fs from 'fs'
 import readline from 'readline'
 
 function decompress(input) {
-    if (/^UYJ1_/.test(input)) {
+    if (/^UYJ[1-2]_/.test(input)) {
+		const ver = input[3];
         input = atob(input.slice(5));
 
         //code = code.replace(/([^\r\n]{40})\r?\n/g,'$1');
-        if(/\x1b[i-z]|\x1c[4-z]/.test(input)) {
-            console.error("\x1b[31mUnsupported compression flags\x1b[0m");
+        if([,/\x1b[i-z]|\x1c[4-z]/,/\x1b[l-z]|\x1c[4-z]/][ver].test(input)) {
+            console.error("\x1b[31mUnsupported compression flags for format UYJ_%s\x1b[0m",ver);
+			return null;
         }
         // code = code.replace(/\x1c1([\w_!@#$%^&*()+=]+)\n\x1c0(-?\d+)/g,'\x1c3$1\x1d$2')
         input = input.replace(/\x1c3([\w_!@#$%^&*()+=]+)\x1d(-?\d+)/g, '\x1c1$1\n\x1c0$2')
@@ -34,6 +36,9 @@ function decompress(input) {
         input = input.replace(/\x1bf/g, 'GET INPUT AND STORE INTO OPEN VARIABLE AS A CHARACTER')
         input = input.replace(/\x1bg/g, 'GET INPUT AND STORE INTO OPEN VARIABLE AS A NUMBER')
         input = input.replace(/\x1bh/g, 'ADD ')
+		if(ver>1) input = input.replace(/\x1bi/g, 'PRINT THE STRING ``')
+		if(ver>1) input = input.replace(/\x1bj/g, 'CREATE THE VARIABLE ')
+		if(ver>1) input = input.replace(/\x1bk/g, 'USE: ')
         input = input.replace(/\n/g, '\r\n')
     } else {
         console.error("\x1b[31mUnsupported compression method/version\x1b[0m");
@@ -56,13 +61,16 @@ if(direct_code==-1) {
 		code0 = code1 = fs.readFileSync(input, { encoding: "utf-8" });
 	} catch (e) {
 		if (e.code = "ENOENT") {
-			console.error("Can't find the input file \x1b[46;30m%s\x1b[0m. try \x1b[46;30mnode node.mjs ./examples/battle_game/game.uyj\x1b[0m!",input);
+			console.error("Can't find the input file \x1b[46;30m%s\x1b[0m. try \x1b[46;30mnode interpreter.mjs ./examples/battle_game/game.uyj\x1b[0m!",input);
 			process.exit(1);
 		}
 	}
 } else {
 	code1 = code0 = process.argv[direct_code+1]??"ERROR_NOT_FOUND";
+	compress = 2;
 }
+
+
 
 if(((/^UYJ\d_/.test(code1)||direct_code!==-1)&&compress==1)||compress==2){
 	console.log("Now decompressing...")
@@ -85,6 +93,8 @@ const code2 = code1.split(/(?:\r?\n){1,}/).map(a => a.trim()).filter(a => a !== 
 const $1 = console.log;
 const $ = _ => process.stdout.write(_);
 let PC = 0, labels = {}, vars = {}, openVar = '';
+const builtinLibs=["STRINGPRINT","QUICKVAR"];
+const usedLibs=[];
 
 //process.stdin.setRawMode(true);
 
@@ -105,7 +115,13 @@ function $$(PC, ...details) {
 while (PC < code2.length) {
 	const line = code2[PC];
 	//$1(`\x1b[92m${PC}: \x1b[1;36m${line}\x1b[0;92m`.padEnd(70) + `:${PC}\x1b[0m`)
-	if (/^(?:PRINT THE CHARACTER WITH THE (?:ASCII|UNICODE) VALUE |PTCWT[AU]V)\d+$/.test(line)) {
+	if(/^USE: .+$/.test(line)) {
+		const library = line.match(/(?<=^USE: ).+$/)[0];
+		if(builtinLibs.includes(library)){
+			usedLibs.push(library);
+		} else $$(PC,"Invalid USE: %s",library)
+		PC++;
+	} else if (/^(?:PRINT THE CHARACTER WITH THE (?:ASCII|UNICODE) VALUE |PTCWT[AU]V)\d+$/.test(line)) {
 		const value = +line.match(/\d+$/)[0];
 		const char = String.fromCharCode(value);
 		$(char);
@@ -196,8 +212,24 @@ while (PC < code2.length) {
 		PC++;
 	} else if (/^END THIS PROGRAM|ETP$/.test(line)) {
 		process.exit(0);
-	} else if (/^NOTE THAT|^\/\//.test(line)) {
+	} else if (/^NOTE THAT |^\/\//.test(line)) {
 		PC++;
+	} else if(/^PRINT THE STRING ``.+``$/.test(line)) {
+		if(usedLibs.includes("STRINGPRINT")) {
+			$(line.match(/(?<=``).+(?=``)/)[0].replace(/\\r\\n|\\r|\\n/g,'\r\n').replace(/\\e/g,'\x1b'));
+			PC++;
+		} else {
+			$$(PC,"%s!? never heard of it...\n(try adding \"USE: STRINGPRINT\" at the start of your code to add the extension. Drexel will hate you, though.)",line);
+		}
+	} else if(/^CREATE THE VARIABLE [\w_!@#$%^&*()+=]+\s+AS -?\d+$/.test(line)) {
+		if(usedLibs.includes("QUICKVAR")) {
+			const variable = line.match(/(?<=VARIABLE )[\w_!@#$%^&*()+=]+/)[0];
+			const value = line.match(/-?\d+$/)[0];
+			vars[variable] = +value;
+			PC++;
+		} else {
+			$$(PC,"%s!? never heard of it...\n(try adding \"USE: QUICKVAR\" at the start of your code to add the extension. Drexel will hate you, though.)",line);
+		}
 	}
 
 	else {

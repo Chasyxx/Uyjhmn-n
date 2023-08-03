@@ -34,6 +34,9 @@ code = code.replace(/END THIS PROGRAM|ETP/g,'\x1be');
 code = code.replace(/GET INPUT AND STORE INTO OPEN VARIABLE AS A CHARACTER|GIASIOVAAC/g,'\x1bf');
 code = code.replace(/GET INPUT AND STORE INTO OPEN VARIABLE AS A NUMBER|GIASIOVAAN/g,'\x1bg');
 code = code.replace(/ADD /g,'\x1bh');
+code = code.replace(/PRINT THE STRING ``/g,'\x1bi');
+code = code.replace(/CREATE THE VARIABLE /g,'\x1bj');
+code = code.replace(/USE: /g,'\x1bk');
 
 code = code.replace(/\x1b3(-?\d+)\x1b4/g,'\x1c0$1');
 code = code.replace(/\x1b1([\w_!@#$%^&*()+=]+)\n\x1b2\1/g,'\x1c1$1');
@@ -41,7 +44,7 @@ code = code.replace(/\x1b8([\w_!@#$%^&*()+=]+)\x1bc([\w_!@#$%^&*()+=]+)\x1b9\2/g
 
 code = code.replace(/\x1c1([\w_!@#$%^&*()+=]+)\n\x1c0(-?\d+)/g,'\x1c3$1\x1d$2')
 
-code = ("UYJ1_"+btoa(code));
+code = ("UYJ2_"+btoa(code));
 //code = code.replace(/([^\r\n]{40})/g,'$1\n');
 
 console.log("\n\n%s\n\nSucessfully made %d bytes of data",code,code.length);
